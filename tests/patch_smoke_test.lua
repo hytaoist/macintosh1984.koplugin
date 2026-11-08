@@ -157,6 +157,7 @@ local settings = {}
 G_reader_settings = {
     isFalse = function(_, name) return settings[name] == false end,
     nilOrTrue = function(_, name) return settings[name] ~= false end,
+    readSetting = function(_, name) return settings[name] end,
 }
 
 local patch_path = arg[1] or "plugin/theme/apply.lua"
@@ -177,6 +178,9 @@ local userpatch = require("userpatch")
 local TouchMenuBar = userpatch.getUpValue(TouchMenu.init, "TouchMenuBar")
 
 assert(Font.fontmap.cfont == "Mac1984Chicago.ttf", "UI font was not mapped")
+assert(TitleBar.title_face_fullscreen
+    and TitleBar.title_face_fullscreen.name == "smalltfont",
+    "TitleBar faces were not refreshed for the themed font")
 assert(Size.radius.window == 0, "Window radius was not squared")
 assert(Menu.line_color == "black", "Menu rules were not themed")
 assert(TouchMenuBar, "TouchMenuBar was not patched")

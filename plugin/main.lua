@@ -46,10 +46,38 @@ local function is_safe_relative_path(value)
         and value:match("%.[%a%d]+$") ~= nil
 end
 
+local function reader_setting(name, default)
+    if not G_reader_settings then return default end
+    local value = G_reader_settings:readSetting(name)
+    if value == nil then return default end
+    return value ~= false
+end
+
 local function file_exists(path)
     local file = path and io.open(path, "rb")
     if not file then return false end
     file:close()
+    return true
+end
+
+local function plugin_is_disabled(dirname)
+    if not G_reader_settings or not dirname then return false end
+    local ok, disabled = pcall(G_reader_settings.readSetting, G_reader_settings, "plugins_disabled")
+    return ok and type(disabled) == "table" and disabled[dirname] == true
+end
+
+local function set_plugin_disabled(dirname, disabled)
+    if not G_reader_settings or not dirname then return false end
+    local ok, values = pcall(G_reader_settings.readSetting, G_reader_settings, "plugins_disabled")
+    values = ok and type(values) == "table" and values or {}
+    if (values[dirname] == true) == disabled then return false end
+    if disabled then
+        values[dirname] = true
+    else
+        values[dirname] = nil
+    end
+    G_reader_settings:saveSetting("plugins_disabled", values)
+    G_reader_settings:flush()
     return true
 end
 
@@ -81,15 +109,41 @@ function Mac1984:init()
 
     self.deploy = load_module(self.path .. "/deploy.lua")
     self.ota = load_module(self.path .. "/ota.lua")
+    self.compat = load_module(self.path .. "/compat.lua")
+    -- Keep the legacy state filename so upgrades retain disabled/last-error state.
     self.state = LuaSettings:open(DataStorage:getSettingsDir() .. "/mac1984-koreader.lua")
 
-    if self.ui and self.ui.menu then
+    if self.compat then
+        self.conflict_kind, self.conflict_path = self.compat.conflict(self.path, {
+            file_exists = file_exists,
+            is_plugin_disabled = plugin_is_disabled,
+        })
+    end
+
+    if self.conflict_kind == "superseded" then
+        logger.info(
+            "Mac1984: legacy plugin folder is dormant because",
+            self.conflict_path,
+            "is installed"
+        )
+    elseif self.ui and self.ui.menu then
         self.ui.menu:registerToMainMenu(self)
     end
-    UIManager:nextTick(function() self:initializeTheme() end)
+    if self.conflict_kind == "legacy_present" then
+        self:setLegacyPluginDisabled(true)
+    end
+    if self.conflict_kind ~= "superseded" then
+        UIManager:nextTick(function() self:initializeTheme() end)
+        UIManager:nextTick(function() self:showLegacyFolderNotice() end)
+    end
+end
+
+function Mac1984:setLegacyPluginDisabled(disabled)
+    return set_plugin_disabled("mac1984-koreader", disabled == true)
 end
 
 function Mac1984:initializeTheme()
+    if self.conflict_kind == "superseded" then return end
     if not self.deploy or not self:isThemeEnabled() then return end
     if not self.version then
         logger.warn("Mac1984: plugin version is missing")
@@ -98,7 +152,25 @@ function Mac1984:initializeTheme()
 
     local deployed_before = self.deploy.is_deployed(self.version)
     local runtime_was_loaded = _G._mac1984_theme_loaded == true
-    local report, deploy_error = self.deploy.deploy(self.path, self.version)
+    local report, deploy_error
+
+    -- Startup should not rewrite ~140 assets when the installed payload is
+    -- already current. Only fall back to a full deployment when the version,
+    -- manifest or SimpleUI settings need repair.
+    local up_to_date = deployed_before
+        and type(self.deploy.is_current) == "function"
+        and self.deploy.is_current(self.version)
+    if up_to_date then
+        local ok_sync, sync_result = pcall(self.deploy.sync_simpleui)
+        if ok_sync and sync_result ~= false then
+            report = { copied = 0, settings_updated = true, fast_path = true }
+        else
+            logger.warn("Mac1984: could not refresh SimpleUI settings:", sync_result)
+        end
+    end
+    if not report then
+        report, deploy_error = self.deploy.deploy(self.path, self.version)
+    end
     if not report then
         logger.warn("Mac1984: deployment failed:", deploy_error)
         if self.state:readSetting("last_error") ~= deploy_error then
@@ -113,9 +185,12 @@ function Mac1984:initializeTheme()
     end
 
     self.state:delSetting("last_error")
-    self.state:saveSetting("deployed_version", self.version)
-    self.state:saveSetting("last_deployed_at", os.time())
-    self.state:flush()
+    if not report.fast_path
+        or self.state:readSetting("deployed_version") ~= self.version then
+        self.state:saveSetting("deployed_version", self.version)
+        self.state:saveSetting("last_deployed_at", os.time())
+        self.state:flush()
+    end
 
     -- User patches are the preferred startup path, but some KOReader builds
     -- disable or skip them. Load the runtime from the plugin as a fallback
@@ -138,6 +213,45 @@ function Mac1984:initializeTheme()
             .. "KOReader needs to restart once to apply the theme and its icons."
         ))
     end)
+end
+
+function Mac1984:showLegacyFolderNotice()
+    if self.conflict_kind ~= "legacy_present" then return end
+    local notice_key = "legacy_folder_notice_version"
+    if self.state:readSetting(notice_key) == self.version then return end
+    self.state:saveSetting(notice_key, self.version)
+    self.state:flush()
+    UIManager:show(InfoMessage:new{
+        text = _(
+            "Macintosh 1984 found both the old and new plugin folders.\n\n"
+            .. "The new macintosh1984.koplugin is active, and the old folder has been "
+            .. "disabled for the next start. Open Tools > Macintosh 1984 and choose "
+            .. "Remove old plugin folder to clean up the duplicate."
+        ),
+        timeout = 8,
+    })
+end
+
+function Mac1984:removeLegacyPluginFolder()
+    if not self.compat then
+        UIManager:show(InfoMessage:new{ text = _("Compatibility helpers are unavailable.") })
+        return
+    end
+    local ok, result = self.compat.remove_legacy(self.path, { file_exists = file_exists })
+    if not ok then
+        UIManager:show(InfoMessage:new{
+            text = T(_("Could not remove the old plugin folder.\n\n%1"), tostring(result)),
+            timeout = 8,
+        })
+        return
+    end
+    self.conflict_kind = nil
+    self.conflict_path = nil
+    self:setLegacyPluginDisabled(false)
+    UIManager:askForRestart(_(
+        "The old plugin folder was removed. Your theme settings and backups were preserved.\n\n"
+        .. "Restart KOReader to finish the cleanup."
+    ))
 end
 
 function Mac1984:loadThemeRuntime()
@@ -260,6 +374,26 @@ function Mac1984:getThemeDiagnostics()
     local ok_model, model_name = pcall(Device.getModel, Device)
     if ok_model and model_name then model = tostring(model_name) end
 
+    local koreader_version = "unknown"
+    local ok_version, Version = pcall(require, "version")
+    if ok_version and type(Version) == "table"
+        and type(Version.getShortVersion) == "function" then
+        local ok_short, short_version = pcall(Version.getShortVersion, Version)
+        if ok_short and short_version then
+            koreader_version = tostring(short_version)
+        end
+    end
+
+    local screen_info = "unknown"
+    local ok_screen, screen = pcall(function() return Device.screen end)
+    if ok_screen and screen then
+        local ok_width, width = pcall(screen.getWidth, screen)
+        local ok_height, height = pcall(screen.getHeight, screen)
+        if ok_width and ok_height and width and height then
+            screen_info = string.format("%sx%s", tostring(width), tostring(height))
+        end
+    end
+
     local runtime_state = _G._mac1984_theme_loaded and _("loaded") or _("not loaded")
     local runtime_error = _G._mac1984_theme_error
         or self.state:readSetting("last_theme_error")
@@ -268,12 +402,22 @@ function Mac1984:getThemeDiagnostics()
     local patch_file = file_exists(patch_path) and _("present") or _("missing")
     local runtime_file = file_exists(self.path .. "/theme/apply.lua")
         and _("present") or _("missing")
+    local plugin_folder = self.compat and self.compat.dirname(self.path) or "unknown"
+    local legacy_folder = self.conflict_kind == "legacy_present"
+        and tostring(self.conflict_path) or _("none")
 
     return table.concat({
         T(_("Device: %1"), model),
+        T(_("KOReader: %1"), koreader_version),
+        T(_("Screen: %1"), screen_info),
         T(_("Plugin: v%1"), self.version or "?"),
+        T(_("Plugin folder: %1"), plugin_folder),
         T(_("Installed payload: %1"),
             self.deploy and self.deploy.deployed_version() or _("not installed")),
+        T(_("Installed files: %1"),
+            self.deploy and self.deploy.installed_count
+                and self.deploy.installed_count() or _("unknown")),
+        T(_("Legacy plugin folder: %1"), legacy_folder),
         T(_("Plugin setting: %1"), plugin_setting),
         T(_("Theme runtime: %1"), runtime_state),
         T(_("Runtime file: %1"), runtime_file),
@@ -298,7 +442,7 @@ function Mac1984:showAbout()
         .. "A 1-bit Macintosh interface theme with 103 KOReader icons, "
         .. "34 SimpleUI icons, ChicagoFLF, striped title bars and hard shadows.\n\n"
         .. "Updates: Storefront > Update All, or Tools > Macintosh 1984 > Check for updates.\n\n"
-        .. "github.com/hytaoist/mac1984-koreader"
+        .. "github.com/hytaoist/macintosh1984.koplugin"
     ), self.version or "?", deployed)
 
     local ButtonDialog = get_button_dialog()
@@ -519,11 +663,87 @@ function Mac1984:checkForUpdate()
 end
 
 function Mac1984:getSubMenu()
+    local function toggle_live_setting(name)
+        local enabled = reader_setting(name, true)
+        G_reader_settings:saveSetting(name, not enabled)
+        G_reader_settings:flush()
+        UIManager:setDirty("all", "ui")
+    end
+
+    local function setting_item(name, label, default, needs_restart, callback)
+        return {
+            text = label,
+            checked_func = function() return reader_setting(name, default) end,
+            callback = callback or function()
+                if needs_restart then
+                    local enabled = reader_setting(name, default)
+                    G_reader_settings:saveSetting(name, not enabled)
+                    G_reader_settings:flush()
+                    UIManager:askForRestart(_(
+                        "Restart KOReader to apply this theme setting."
+                    ))
+                else
+                    toggle_live_setting(name)
+                end
+            end,
+            keep_menu_open = true,
+        }
+    end
+
     local items = {
         {
             text = T(_("Version: %1"), self.version or "?"),
             callback = function() self:showAbout() end,
             keep_menu_open = true,
+        },
+        {
+            text = _("Theme settings"),
+            sub_item_table = {
+                {
+                    text = _("Pinstripe title bars"),
+                    checked_func = function()
+                        return reader_setting("mac1984_pinstripes", true)
+                    end,
+                    callback = function() toggle_live_setting("mac1984_pinstripes") end,
+                    keep_menu_open = true,
+                },
+                {
+                    text = _("Window shadows"),
+                    checked_func = function()
+                        return reader_setting("mac1984_shadows", true)
+                    end,
+                    callback = function() toggle_live_setting("mac1984_shadows") end,
+                    keep_menu_open = true,
+                },
+                setting_item(
+                    "mac1984_ui_font",
+                    _("Use ChicagoFLF UI font"),
+                    true,
+                    true,
+                    function()
+                        local enabled = reader_setting("mac1984_ui_font", true)
+                        G_reader_settings:saveSetting("mac1984_ui_font", not enabled)
+                        G_reader_settings:flush()
+                        if self.deploy and self.deploy.set_ui_font then
+                            local ok_font, font_error = self.deploy.set_ui_font(not enabled)
+                            if not ok_font then
+                                logger.warn(
+                                    "Mac1984: could not update the SimpleUI font:", font_error
+                                )
+                            end
+                        end
+                        UIManager:askForRestart(_(
+                            "Restart KOReader to change the UI font."
+                        ))
+                    end
+                ),
+                setting_item(
+                    "mac1984_safe_mode",
+                    _("Safe mode (skip UI patches)"),
+                    false,
+                    true
+                ),
+            },
         },
     }
 
@@ -562,6 +782,23 @@ function Mac1984:getSubMenu()
                     ok_text = _("Restore"),
                     cancel_text = _("Cancel"),
                     ok_callback = function() self:restoreOriginalTheme() end,
+                })
+            end,
+        })
+    end
+
+    if self.conflict_kind == "legacy_present" then
+        table.insert(items, {
+            text = _("Remove old plugin folder"),
+            callback = function()
+                UIManager:show(ConfirmBox:new{
+                    text = T(_(
+                        "Remove the old plugin folder?\n\n%1\n\n"
+                        .. "Theme settings and the original-file backup are preserved."
+                    ), tostring(self.conflict_path)),
+                    ok_text = _("Remove"),
+                    cancel_text = _("Cancel"),
+                    ok_callback = function() self:removeLegacyPluginFolder() end,
                 })
             end,
         })

@@ -10,29 +10,43 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        lua:
+          - lua5.4
+          - luajit
     steps:
       - uses: actions/checkout@v4
       - name: Install Lua and ZIP tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y lua5.4 zip unzip
-          sudo ln -sf /usr/bin/lua5.4 /usr/local/bin/lua
+          sudo apt-get install -y lua5.4 luajit zip unzip
+          mkdir -p "$HOME/.local/bin"
+          ln -sf "$(command -v ${{ matrix.lua }})" "$HOME/.local/bin/lua"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Validate syntax
         run: |
           bash -n build.sh install.sh uninstall.sh publish.sh \
             tests/run_build_repro_test.sh tests/run_deploy_test.sh \
-            tests/run_installer_test.sh tests/run_loader_test.sh
+            tests/run_installer_test.sh tests/run_loader_test.sh \
+            tests/run_apply_options_test.sh tests/run_compat_test.sh
           for file in plugin/_meta.lua plugin/deploy.lua plugin/ota.lua plugin/main.lua \
-            plugin/theme/apply.lua patches/2-mac1984.lua assets/simpleui-icons/pack.lua \
+            plugin/compat.lua plugin/theme/apply.lua patches/2-mac1984.lua \
+            assets/simpleui-icons/pack.lua \
             tests/main_test.lua tests/ota_test.lua; do
             FILE="$file" lua -e 'assert(loadfile(assert(os.getenv("FILE"))))'
           done
           python3 -m py_compile tools/make_zip.py
+      - name: Check icon coverage
+        run: python3 tools/check_icons.py
       - name: Run tests
         run: |
           lua tests/patch_smoke_test.lua plugin/theme/apply.lua
+          ./tests/run_apply_options_test.sh
           lua tests/main_test.lua plugin/main.lua
           lua tests/ota_test.lua plugin/ota.lua
+          ./tests/run_compat_test.sh
           ./tests/run_loader_test.sh
           ./tests/run_deploy_test.sh
           ./tests/run_installer_test.sh
@@ -40,7 +54,7 @@ jobs:
         run: ./tests/run_build_repro_test.sh
       - uses: actions/upload-artifact@v4
         with:
-          name: mac1984-koreader
+          name: macintosh1984
           path: |
             dist/*.zip
             dist/SHA256SUMS

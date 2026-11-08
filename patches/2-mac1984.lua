@@ -1,19 +1,40 @@
 -- Stable Macintosh 1984 loader.
 --
--- Storefront can replace mac1984-koreader.koplugin during an OTA update. This
--- tiny user patch stays in place and always loads the newest available runtime.
+-- Storefront can replace either the legacy mac1984-koreader.koplugin folder or
+-- the current macintosh1984.koplugin folder during an OTA update. This tiny
+-- user patch stays in place and always prefers the current runtime.
 
 local logger = require("logger")
 local lfs = require("libs/libkoreader-lfs")
+
+local PLUGIN_DIRNAMES = {
+    "macintosh1984.koplugin",
+    "mac1984-koreader.koplugin",
+}
+
+local function is_known_plugin(dirname)
+    for _index, name in ipairs(PLUGIN_DIRNAMES) do
+        if dirname == name then return true end
+    end
+    return false
+end
 
 local function is_file(path)
     return lfs.attributes(path, "mode") == "file"
 end
 
 local function load_from_plugin_path()
+    local roots = {}
     for entry in package.path:gmatch("[^;]+") do
-        local plugin_root = entry:match("^(.*mac1984%-koreader%.koplugin)/")
-        if plugin_root then
+        local root, dirname = entry:match("^(.*)/([^/]+%.koplugin)/")
+        if root and is_known_plugin(dirname) then
+            roots[dirname] = roots[dirname] or {}
+            table.insert(roots[dirname], root .. "/" .. dirname)
+        end
+    end
+
+    for _index, dirname in ipairs(PLUGIN_DIRNAMES) do
+        for _root_index, plugin_root in ipairs(roots[dirname] or {}) do
             local runtime = plugin_root .. "/theme/apply.lua"
             if is_file(runtime) then return runtime end
         end
@@ -27,6 +48,7 @@ local function load_runtime()
     local DataStorage = require("datastorage")
     local data_dir = DataStorage:getDataDir()
     local candidates = {
+        data_dir .. "/plugins/macintosh1984.koplugin/theme/apply.lua",
         data_dir .. "/plugins/mac1984-koreader.koplugin/theme/apply.lua",
         data_dir .. "/.mac1984-theme/runtime/apply.lua",
     }

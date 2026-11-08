@@ -32,12 +32,20 @@ printf '%s\n' \
     '}' \
     > "$SETTINGS_DIR/sui_settings.lua"
 
+LEGACY_PLUGIN_DIR="$KO_DIR/plugins/mac1984-koreader.koplugin"
+mkdir -p "$LEGACY_PLUGIN_DIR/theme"
+printf 'return { name = "mac1984" }\n' > "$LEGACY_PLUGIN_DIR/_meta.lua"
+printf 'return {}\n' > "$LEGACY_PLUGIN_DIR/main.lua"
+printf '_G.legacy_plugin_should_be_removed = true\n' \
+    > "$LEGACY_PLUGIN_DIR/theme/apply.lua"
+
 "$PROJECT_DIR/install.sh" "$KO_DIR" >/dev/null
 
-PLUGIN_DIR="$KO_DIR/plugins/mac1984-koreader.koplugin"
+PLUGIN_DIR="$KO_DIR/plugins/macintosh1984.koplugin"
 THEME_DIR="$KO_DIR/.mac1984-theme"
 SETTINGS_FILE="$SETTINGS_DIR/sui_settings.lua"
 
+test ! -e "$LEGACY_PLUGIN_DIR"
 test -f "$PLUGIN_DIR/_meta.lua"
 test -f "$PLUGIN_DIR/main.lua"
 test -f "$PLUGIN_DIR/assets/icons/appbar.menu.svg"
@@ -60,6 +68,7 @@ fi
 # Fake the directory sidecars macOS can create on exFAT. Reinstall must clean
 # the theme-owned metadata without touching unrelated files.
 touch "$KO_DIR/plugins/._mac1984-koreader.koplugin"
+touch "$KO_DIR/plugins/._macintosh1984.koplugin"
 touch "$PLUGIN_DIR/._assets"
 touch "$THEME_DIR/._version"
 touch "$SETTINGS_DIR/sui_icons/packs/._Macintosh 1984"
@@ -78,13 +87,21 @@ awk '{
 }' "$SETTINGS_FILE" > "$SETTINGS_FILE.tmp"
 mv "$SETTINGS_FILE.tmp" "$SETTINGS_FILE"
 touch "$KO_DIR/plugins/._mac1984-koreader.koplugin"
+touch "$KO_DIR/plugins/._macintosh1984.koplugin"
 touch "$THEME_DIR/._version"
 touch "$SETTINGS_DIR/sui_icons/packs/._Macintosh 1984"
+touch "$KO_DIR/settings/mac1984-koreader.lua"
+
+# A stale legacy copy must also be removed by uninstall.
+mkdir -p "$LEGACY_PLUGIN_DIR"
+touch "$LEGACY_PLUGIN_DIR/_meta.lua" "$LEGACY_PLUGIN_DIR/main.lua"
 "$PROJECT_DIR/uninstall.sh" "$KO_DIR" >/dev/null
 
 test "$(cat "$KO_DIR/icons/appbar.menu.svg")" = "STOCK"
 test ! -e "$PLUGIN_DIR"
+test ! -e "$LEGACY_PLUGIN_DIR"
 test ! -e "$THEME_DIR"
+test ! -e "$KO_DIR/settings/mac1984-koreader.lua"
 if find "$KO_DIR" -name '._*' -print -quit | grep -q .; then
     printf 'AppleDouble sidecar survived uninstall\n' >&2
     exit 1

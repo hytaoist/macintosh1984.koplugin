@@ -7,7 +7,7 @@
 - Storefront 安装与更新
 - 通过 GitHub Releases 手动检查和安装更新
 
-[下载最新版本](https://github.com/hytaoist/mac1984-koreader/releases/latest)
+[下载最新版本](https://github.com/hytaoist/macintosh1984.koplugin/releases/latest)
 
 ![Macintosh 1984 for KOReader](preview/mac1984-ui.png)
 
@@ -40,17 +40,17 @@
 ### Storefront（推荐）
 
 1. 打开 KOReader 的 **Storefront**。
-2. 搜索 **Macintosh 1984**，或输入仓库 `hytaoist/mac1984-koreader`。
+2. 搜索 **Macintosh 1984**，或输入仓库 `hytaoist/macintosh1984.koplugin`。
 3. 安装后完全退出并重新打开 KOReader。
 
 以后在 Storefront 中执行 **Update All** 即可更新。
 
 ### 手动安装
 
-下载最新版 `mac1984-koreader-v*.koplugin.zip`，解压到 `koreader/plugins/`，最终目录应为：
+下载最新版 `macintosh1984-v*.koplugin.zip`，解压到 `koreader/plugins/`，最终目录应为：
 
 ```text
-koreader/plugins/mac1984-koreader.koplugin/
+koreader/plugins/macintosh1984.koplugin/
 ```
 
 也可以在电脑上挂载设备存储后运行：
@@ -65,6 +65,17 @@ koreader/plugins/mac1984-koreader.koplugin/
 
 当前版本在 KOReader 跳过或禁用启动用户补丁时，会自动使用兼容后备方式加载主题。
 
+### 从 `mac1984-koreader.koplugin` 升级
+
+已有的 Storefront 安装可以直接使用 **Update All**；Storefront 会继续更新当前
+已安装的目录。插件内的 **Check for updates** 也会通过 GitHub 的仓库重命名跳转
+自动升级。
+
+如果是手动并排安装，解压新包后请删除旧的
+`koreader/plugins/mac1984-koreader.koplugin/` 目录。`install.sh` 会自动完成清理。
+若两个目录同时存在，新插件会优先生效，在下次启动时停用旧目录，并在菜单中提供
+**Remove old plugin folder**。用户设置和 `.mac1984-theme` 中的原文件备份都会保留。
+
 ## 更新
 
 - Storefront 用户：**Storefront → Update All**
@@ -76,6 +87,8 @@ koreader/plugins/mac1984-koreader.koplugin/
 
 在 **工具 → Macintosh 1984** 中可以：
 
+- 即时切换标题栏细条纹和窗口硬阴影
+- 在 ChicagoFLF 与系统 UI 字体之间切换，或启用安全模式（需重启）
 - 重新安装或修复主题文件
 - 检查更新
 - 停用主题并恢复原文件

@@ -10,7 +10,8 @@ assert(type(meta.version) == "string" and meta.version ~= "", "missing plugin ve
 io.write(meta.version)
 LUA
 )"
-PLUGIN_NAME="mac1984-koreader.koplugin"
+PLUGIN_NAME="macintosh1984.koplugin"
+LEGACY_PLUGIN_NAME="mac1984-koreader.koplugin"
 THEME_PACK_NAME="Macintosh 1984"
 SIMPLEUI_PACK_PREFIX="simpleui/sui_icons/packs/$THEME_PACK_NAME"
 SIMPLEUI_SETTINGS_REL="simpleui/sui_settings.lua"
@@ -50,6 +51,7 @@ BACKUP_DIR="$THEME_DIR/backup"
 INSTALLED_FILE="$THEME_DIR/installed.tsv"
 NEW_INSTALLED_FILE="$THEME_DIR/installed.tsv.new"
 PLUGIN_DEST="$KO_DIR/plugins/$PLUGIN_NAME"
+LEGACY_PLUGIN_DEST="$KO_DIR/plugins/$LEGACY_PLUGIN_NAME"
 
 mkdir -p "$KO_DIR/icons" "$KO_DIR/fonts" "$KO_DIR/patches" "$KO_DIR/plugins" \
     "$THEME_DIR/runtime" "$BACKUP_DIR"
@@ -97,6 +99,17 @@ remove_sidecar() {
     if [ -f "$sidecar" ]; then
         rm -f "$sidecar"
     fi
+}
+
+remove_legacy_plugin() {
+    if [ "$LEGACY_PLUGIN_DEST" = "$PLUGIN_DEST" ]; then
+        return
+    fi
+    if [ -d "$LEGACY_PLUGIN_DEST" ]; then
+        rm -rf "$LEGACY_PLUGIN_DEST"
+        printf 'Removed legacy plugin folder: %s\n' "$LEGACY_PLUGIN_DEST"
+    fi
+    remove_sidecar "$LEGACY_PLUGIN_DEST"
 }
 
 clean_macos_metadata() {
@@ -263,6 +276,7 @@ clean_macos_metadata "$PLUGIN_DEST" "$THEME_DIR" \
 remove_sidecar "$KO_DIR/patches/2-mac1984.lua"
 remove_sidecar "$KO_DIR/fonts/Mac1984Chicago.ttf"
 remove_sidecar "$SETTINGS_DIR/$SIMPLEUI_SETTINGS_REL"
+remove_legacy_plugin
 
 printf '\nMacintosh 1984 for KOReader %s installed.\n' "$VERSION"
 printf '  KOReader: %s\n' "$KO_DIR"

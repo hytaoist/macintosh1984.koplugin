@@ -7,7 +7,7 @@ Bring the black-and-white Macintosh 1984 interface to KOReader and SimpleUI on a
 - Storefront installation and updates
 - Manual update checks and installs through GitHub Releases
 
-[Download the latest release](https://github.com/hytaoist/mac1984-koreader/releases/latest)
+[Download the latest release](https://github.com/hytaoist/macintosh1984.koplugin/releases/latest)
 
 ![Macintosh 1984 for KOReader](preview/mac1984-ui.png)
 
@@ -40,17 +40,17 @@ Other devices and KOReader versions may work, but have not been fully verified.
 ### Storefront (Recommended)
 
 1. Open **Storefront** in KOReader.
-2. Search for **Macintosh 1984**, or enter the repository name `hytaoist/mac1984-koreader`.
+2. Search for **Macintosh 1984**, or enter the repository name `hytaoist/macintosh1984.koplugin`.
 3. After installation, fully quit and reopen KOReader.
 
 Use **Update All** in Storefront to install future updates.
 
 ### Manual Installation
 
-Download the latest `mac1984-koreader-v*.koplugin.zip` and extract it into `koreader/plugins/`. The final directory should be:
+Download the latest `macintosh1984-v*.koplugin.zip` and extract it into `koreader/plugins/`. The final directory should be:
 
 ```text
-koreader/plugins/mac1984-koreader.koplugin/
+koreader/plugins/macintosh1984.koplugin/
 ```
 
 Alternatively, expose the device storage on a computer and run:
@@ -66,6 +66,19 @@ plugin menu is visible, open **Tools → Macintosh 1984 → Theme diagnostics**.
 Current releases include a compatibility fallback that loads the theme when
 KOReader skips or disables startup user patches.
 
+### Upgrading from `mac1984-koreader.koplugin`
+
+Existing Storefront installations keep working with **Update All**; Storefront
+updates the folder that is already installed. The built-in **Check for updates**
+path also follows GitHub's rename redirect automatically.
+
+For a manual side-by-side install, remove the old
+`koreader/plugins/mac1984-koreader.koplugin/` folder after extracting the new
+package. `install.sh` does this automatically. If both folders are present, the
+new plugin takes precedence, disables the old folder for the next start, and
+offers **Remove old plugin folder** in its menu. User settings and the
+original-file backup in `.mac1984-theme` are preserved.
+
 ## Updates
 
 - Storefront users: **Storefront → Update All**
@@ -77,6 +90,8 @@ Restart KOReader when prompted after updating.
 
 The **Tools → Macintosh 1984** menu lets you:
 
+- Toggle pinstripes and window shadows immediately
+- Switch between the ChicagoFLF and system UI fonts, or enable safe mode (restart required)
 - Reinstall or repair theme files
 - Check for updates
 - Disable the theme and restore the original files

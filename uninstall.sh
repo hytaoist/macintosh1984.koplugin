@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -eu
 
-PLUGIN_NAME="mac1984-koreader.koplugin"
+PLUGIN_NAME="macintosh1984.koplugin"
+LEGACY_PLUGIN_NAME="mac1984-koreader.koplugin"
 THEME_PACK_NAME="Macintosh 1984"
 SIMPLEUI_PACK_PREFIX="simpleui/sui_icons/packs/$THEME_PACK_NAME"
 SIMPLEUI_SETTINGS_REL="simpleui/sui_settings.lua"
@@ -40,6 +41,7 @@ THEME_DIR="$KO_DIR/.mac1984-theme"
 BACKUP_DIR="$THEME_DIR/backup"
 INSTALLED_FILE="$THEME_DIR/installed.tsv"
 PLUGIN_DEST="$KO_DIR/plugins/$PLUGIN_NAME"
+LEGACY_PLUGIN_DEST="$KO_DIR/plugins/$LEGACY_PLUGIN_NAME"
 
 if [ ! -f "$INSTALLED_FILE" ]; then
     printf '%s\n' "Installation manifest not found: $INSTALLED_FILE" >&2
@@ -156,13 +158,17 @@ done < "$INSTALLED_FILE"
 
 # The plugin folder is managed separately from the deployed theme manifest.
 rm -rf "$PLUGIN_DEST"
+rm -rf "$LEGACY_PLUGIN_DEST"
 rm -rf "$THEME_DIR"
 remove_sidecar "$PLUGIN_DEST"
+remove_sidecar "$LEGACY_PLUGIN_DEST"
 remove_sidecar "$THEME_DIR"
 remove_sidecar "$SETTINGS_DIR/$SIMPLEUI_PACK_PREFIX"
 remove_sidecar "$KO_DIR/patches/2-mac1984.lua"
 remove_sidecar "$KO_DIR/fonts/Mac1984Chicago.ttf"
 remove_sidecar "$SETTINGS_DIR/$SIMPLEUI_SETTINGS_REL"
+rm -f "$SETTINGS_DIR/mac1984-koreader.lua"
+remove_sidecar "$SETTINGS_DIR/mac1984-koreader.lua"
 
 rmdir "$KO_DIR/icons" 2>/dev/null || true
 rmdir "$KO_DIR/plugins" 2>/dev/null || true

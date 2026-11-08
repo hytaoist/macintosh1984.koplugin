@@ -69,7 +69,7 @@ package.preload["json"] = function()
                     tag_name = "v1.2.2",
                     assets = {
                         {
-                            name = "mac1984-koreader-v1.2.2.koplugin.zip",
+                            name = "macintosh1984-v1.2.2.koplugin.zip",
                             browser_download_url = "https://example.test/plugin.zip",
                             size = 1234,
                         },
@@ -98,9 +98,9 @@ OTA.download = function(_, path)
     file:close()
     return true
 end
-local release = assert(OTA.fetch_latest("hytaoist/mac1984-koreader"))
+local release = assert(OTA.fetch_latest("hytaoist/macintosh1984.koplugin"))
 assert(release.version == "1.2.2", "release version parsing failed")
-assert(release.asset_name == "mac1984-koreader-v1.2.2.koplugin.zip",
+assert(release.asset_name == "macintosh1984-v1.2.2.koplugin.zip",
     "Storefront asset selection failed")
 assert(release.url == "https://example.test/plugin.zip", "release URL selection failed")
 assert(OTA.is_newer("1.2.2", "1.2.1"), "version comparison failed")

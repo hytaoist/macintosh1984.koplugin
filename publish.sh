@@ -4,7 +4,7 @@ set -eu
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
-REPO="${GITHUB_REPO:-hytaoist/mac1984-koreader}"
+REPO="${GITHUB_REPO:-hytaoist/macintosh1984.koplugin}"
 VERSION="$(
     lua - "$SCRIPT_DIR/plugin/_meta.lua" <<'LUA'
 local path = assert(arg[1], "missing _meta.lua path")
@@ -55,14 +55,14 @@ git push origin "$TAG"
 
 if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
     gh release upload "$TAG" \
-        "dist/mac1984-koreader-$TAG.koplugin.zip" \
-        "dist/mac1984-koreader-$TAG.zip" \
+        "dist/macintosh1984-$TAG.koplugin.zip" \
+        "dist/macintosh1984-$TAG.zip" \
         "dist/SHA256SUMS" \
         --repo "$REPO" --clobber
 else
     gh release create "$TAG" \
-        "dist/mac1984-koreader-$TAG.koplugin.zip" \
-        "dist/mac1984-koreader-$TAG.zip" \
+        "dist/macintosh1984-$TAG.koplugin.zip" \
+        "dist/macintosh1984-$TAG.zip" \
         "dist/SHA256SUMS" \
         --repo "$REPO" \
         --title "Macintosh 1984 $TAG" \

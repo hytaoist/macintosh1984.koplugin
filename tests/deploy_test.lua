@@ -111,6 +111,41 @@ assert(is_file(data_dir .. "/.mac1984-theme/backup/D/icons/appbar.menu.svg"),
     "stock icon was not backed up")
 assert(is_file(data_dir .. "/.mac1984-theme/backup/S/simpleui/sui_settings.lua"),
     "SimpleUI settings were not backed up")
+assert(Deploy.installed_count(options) > 100,
+    "installed file count did not include the theme payload")
+assert(Deploy.is_current("1.2.0", options), "complete deployment was not current")
+assert(not Deploy.is_current("9.9.9", options),
+    "a different version should not be current")
+
+-- The startup fast path still refreshes the SimpleUI selection without
+-- copying the icon set again.
+write(settings_path, [[return {
+    ["simpleui_ui_font_name"] = "OpenDyslexic",
+    ["simpleui_sysicon_menu"] = "./settings/simpleui/sui_icons/packs/Solar Mono/menu.svg",
+}
+]])
+assert(Deploy.sync_simpleui(options), "SimpleUI settings sync failed")
+assert(read(settings_path):find("Macintosh 1984/", 1, true),
+    "SimpleUI pack was not refreshed on the fast path")
+assert(read(settings_path):find('"ChicagoFLF"', 1, true),
+    "SimpleUI font was not refreshed on the fast path")
+
+assert(Deploy.set_ui_font(false, options), "could not disable the SimpleUI font")
+assert(read(settings_path):find('"OpenDyslexic"', 1, true),
+    "the original SimpleUI font was not restored")
+assert(read(settings_path):find("Macintosh 1984/", 1, true),
+    "disabling the UI font also changed the icon pack")
+assert(Deploy.set_ui_font(true, options), "could not re-enable the SimpleUI font")
+assert(read(settings_path):find('"ChicagoFLF"', 1, true),
+    "the SimpleUI font was not re-applied")
+
+-- Deleting any tracked file must make the next startup repair the payload.
+command_ok("rm -f " .. shell_quote(icon_path))
+assert(not Deploy.is_current("1.2.0", options),
+    "a missing deployed file was still reported as current")
+report, err = Deploy.deploy(plugin_dir, "1.2.0", options)
+assert(report, err)
+assert(is_file(icon_path), "missing deployed file was not repaired")
 
 local first_theme_icon = read(icon_path)
 write(plugin_dir .. "/assets/icons/appbar.menu.svg", "THEME V2\n")

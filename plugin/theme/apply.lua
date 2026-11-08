@@ -1,7 +1,7 @@
 -- Macintosh 1984 runtime for KOReader.
 --
 -- This file is copied into KOReader's stable theme data directory by the
--- mac1984-koreader plugin. The installed patch is intentionally tiny and only
+-- Macintosh 1984 plugin. The installed patch is intentionally tiny and only
 -- loads this runtime, so Storefront can replace the plugin while the user patch
 -- remains stable.
 
@@ -42,6 +42,9 @@ local FONT_SLOTS = {
 }
 
 local function apply_ui_font()
+    if G_reader_settings:isFalse("mac1984_ui_font") then
+        return false, "disabled"
+    end
     local Font = require("ui/font")
     local FontList = require("fontlist")
     local lfs = require("libs/libkoreader-lfs")
@@ -100,7 +103,21 @@ local function apply_theme()
 
     local has_ui_font, font_path = apply_ui_font()
     if not has_ui_font then
-        logger.warn("Mac1984: font not found at", font_path, "- using stock UI font")
+        if font_path == "disabled" then
+            logger.info("Mac1984: UI font replacement disabled")
+        else
+            logger.warn("Mac1984: font not found at", font_path, "- using stock UI font")
+        end
+    else
+        -- The runtime may load after KOReader has already required TitleBar,
+        -- especially when startup patches are disabled. Refresh the cached
+        -- title faces so the fallback path also uses the themed font.
+        refresh_titlebar_faces()
+    end
+
+    if G_reader_settings:readSetting("mac1984_safe_mode") == true then
+        logger.info("Mac1984: safe mode enabled; skipping widget patches")
+        return
     end
 
     -- Square windows, heavier rules, and compact controls. Button radii are
@@ -308,8 +325,9 @@ local userpatch = require("userpatch")
 if type(userpatch.registerPatchPluginFunc) == "function" then
     pcall(userpatch.registerPatchPluginFunc, "simpleui", function()
         local ok_simpleui, err_simpleui = pcall(function()
-            apply_ui_font()
-            refresh_titlebar_faces()
+            local has_font = apply_ui_font()
+            if has_font then refresh_titlebar_faces() end
+            if G_reader_settings:readSetting("mac1984_safe_mode") == true then return end
             apply_simpleui_tokens()
         end)
         if not ok_simpleui then

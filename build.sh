@@ -3,10 +3,11 @@ set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 DIST_DIR="$SCRIPT_DIR/dist"
-PLUGIN_NAME="mac1984-koreader.koplugin"
+PLUGIN_NAME="macintosh1984.koplugin"
 STAGE_DIR="$DIST_DIR/.stage"
 PLUGIN_STAGE="$STAGE_DIR/$PLUGIN_NAME"
-STANDALONE_STAGE="$STAGE_DIR/mac1984-koreader"
+STANDALONE_NAME="macintosh1984"
+STANDALONE_STAGE="$STAGE_DIR/$STANDALONE_NAME"
 
 VERSION="$(
     lua - "$SCRIPT_DIR/plugin/_meta.lua" <<'LUA'
@@ -17,8 +18,8 @@ io.write(meta.version)
 LUA
 )"
 
-PLUGIN_ARCHIVE="$DIST_DIR/mac1984-koreader-v$VERSION.koplugin.zip"
-STANDALONE_ARCHIVE="$DIST_DIR/mac1984-koreader-v$VERSION.zip"
+PLUGIN_ARCHIVE="$DIST_DIR/macintosh1984-v$VERSION.koplugin.zip"
+STANDALONE_ARCHIVE="$DIST_DIR/macintosh1984-v$VERSION.zip"
 ZIP_BUILDER="$SCRIPT_DIR/tools/make_zip.py"
 
 rm -rf "$STAGE_DIR"
@@ -51,13 +52,14 @@ find "$STAGE_DIR" -type f -name '*.pyc' -delete
 
 rm -f "$PLUGIN_ARCHIVE" "$STANDALONE_ARCHIVE" "$DIST_DIR/SHA256SUMS"
 python3 "$ZIP_BUILDER" "$PLUGIN_STAGE" "$PLUGIN_NAME" "$PLUGIN_ARCHIVE"
-python3 "$ZIP_BUILDER" "$STANDALONE_STAGE" "mac1984-koreader" "$STANDALONE_ARCHIVE"
+python3 "$ZIP_BUILDER" "$STANDALONE_STAGE" "$STANDALONE_NAME" "$STANDALONE_ARCHIVE"
 
 if ! unzip -Z1 "$PLUGIN_ARCHIVE" | grep -q "^$PLUGIN_NAME/_meta.lua$"; then
     printf 'Storefront archive validation failed: missing %s/_meta.lua\n' "$PLUGIN_NAME" >&2
     exit 1
 fi
-if unzip -Z1 "$PLUGIN_ARCHIVE" | grep -q '^mac1984-koreader/'; then
+if unzip -Z1 "$PLUGIN_ARCHIVE" \
+    | grep -Eq '^mac1984-koreader([.]koplugin)?/'; then
     printf 'Storefront archive validation failed: wrong ZIP root\n' >&2
     exit 1
 fi
