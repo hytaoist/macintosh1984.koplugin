@@ -51,9 +51,9 @@ ZIP 使用固定文件顺序、时间戳和权限，因此重复构建会得到�
 
 ## 仓库与目录改名
 
-GitHub 仓库应使用 GitHub 的 **Rename** 功能改为 `macintosh1984.koplugin`，
-不要新建仓库后删除旧仓库。旧 URL 的 301 重定向是已有用户继续通过 Storefront
-和插件内 OTA 升级的关键；旧名称也不要再创建其他仓库，否则重定向会失效。
+GitHub 仓库已使用 **Rename** 功能从 `mac1984-koreader` 改为
+`macintosh1984.koplugin`。不要新建仓库后删除旧仓库，也不要用旧名称创建其他仓库：
+旧 URL 的 301 重定向是已有用户继续通过 Storefront 和插件内 OTA 升级的关键。
 
 插件同时识别新旧目录：
 
@@ -90,19 +90,12 @@ CI 会同时使用 Lua 5.4 和 LuaJIT 运行测试。
 
 1. 修改 `plugin/_meta.lua` 和 `assets/simpleui-icons/pack.lua` 中的版本号。
 2. 运行完整测试和 `./build.sh`。
-3. 使用 GitHub 的 Rename 功能改名（见上一节），再更新本地远程地址：
+3. 提交代码并创建 `v<version>` 标签。
+4. 推送标签，`.github/workflows/release.yml` 会构建并创建 GitHub Release。
 
-   ```bash
-   gh repo rename macintosh1984.koplugin --repo hytaoist/mac1984-koreader
-   git remote set-url origin git@github.com:hytaoist/macintosh1984.koplugin.git
-   ```
-
-4. 提交代码并创建 `v<version>` 标签。
-5. 推送标签，`.github/workflows/release.yml` 会构建并创建 GitHub Release。
-
-发布顺序必须是**先改名、再发布 v1.3.0 或更高版本**。这样旧版本的
-`_meta.github` 仍能通过 GitHub 重定向找到新仓库；如果先发布再改名，
-旧客户端会短暂指向不存在的仓库。发布后验证旧仓库 URL 仍返回 301。
+仓库改名已在 v1.3.0 前完成。发布后请验证旧仓库 URL
+`https://github.com/hytaoist/mac1984-koreader` 仍返回 301 重定向，
+否则旧版本客户端的 OTA 检查会失效。
 
 也可以运行 `./publish.sh`，但需要本机 `gh` 已完成 GitHub 登录。
 

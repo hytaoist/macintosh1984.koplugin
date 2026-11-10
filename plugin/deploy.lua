@@ -65,6 +65,17 @@ local function read_file(path)
     return data
 end
 
+-- Replaces path with tmp. On POSIX rename(2) atomically overwrites the
+-- destination; the remove/retry fallback only exists for platforms whose
+-- rename cannot replace an existing file.
+local function replace_file(tmp, path)
+    if os.rename(tmp, path) then return true end
+    os.remove(path)
+    if os.rename(tmp, path) then return true end
+    os.remove(tmp)
+    return false
+end
+
 local function write_file(path, data)
     local tmp = path .. ".mac1984.tmp"
     local file = io.open(tmp, "wb")
@@ -75,12 +86,7 @@ local function write_file(path, data)
         os.remove(tmp)
         return false
     end
-    os.remove(path)
-    if not os.rename(tmp, path) then
-        os.remove(tmp)
-        return false
-    end
-    return true
+    return replace_file(tmp, path)
 end
 
 local function make_path(path)
@@ -111,13 +117,17 @@ local function copy_file(source, destination)
     if not file_exists(source) then return false end
     if not make_path(parent_dir(destination)) then return false end
 
+    -- Copy through a temporary file so an interrupted copy cannot leave a
+    -- truncated payload behind: is_current only checks file existence.
     local _, ffiutil = util_modules()
     if ffiutil and type(ffiutil.copyFile) == "function" then
-        local err = ffiutil.copyFile(source, destination)
-        if not err then
+        local tmp = destination .. ".mac1984.tmp"
+        local err = ffiutil.copyFile(source, tmp)
+        if not err and replace_file(tmp, destination) then
             remove_sidecar(destination)
             return true
         end
+        os.remove(tmp)
     end
 
     local data = read_file(source)
@@ -588,6 +598,7 @@ function M.uninstall(options)
     remove_file(path_join(all_roots.D, MANIFEST_FILE))
     remove_file(path_join(all_roots.D, VERSION_FILE))
     remove_tree(theme_dir)
+    remove_sidecar(theme_dir)
     return restored
 end
 

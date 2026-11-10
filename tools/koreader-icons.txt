@@ -59,6 +59,7 @@ edit
 exit
 home
 info
+license
 move.down
 move.up
 notice-info

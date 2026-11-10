@@ -168,7 +168,9 @@ remove_sidecar "$KO_DIR/patches/2-mac1984.lua"
 remove_sidecar "$KO_DIR/fonts/Mac1984Chicago.ttf"
 remove_sidecar "$SETTINGS_DIR/$SIMPLEUI_SETTINGS_REL"
 rm -f "$SETTINGS_DIR/mac1984-koreader.lua"
+rm -f "$SETTINGS_DIR/mac1984-koreader.lua.old"
 remove_sidecar "$SETTINGS_DIR/mac1984-koreader.lua"
+remove_sidecar "$SETTINGS_DIR/mac1984-koreader.lua.old"
 
 rmdir "$KO_DIR/icons" 2>/dev/null || true
 rmdir "$KO_DIR/plugins" 2>/dev/null || true

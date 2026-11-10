@@ -36,6 +36,11 @@ def main():
         print("Missing KOReader icons:", ", ".join(missing), file=sys.stderr)
         return 1
 
+    extra = sorted(set(actual) - set(expected))
+    if extra:
+        print("Extra KOReader icons:", ", ".join(extra), file=sys.stderr)
+        return 1
+
     simpleui = simpleui_references()
     missing_simpleui = [
         name

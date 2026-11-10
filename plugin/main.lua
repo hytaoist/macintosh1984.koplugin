@@ -30,10 +30,6 @@ local function load_module(path)
     return module
 end
 
-local function trim(value)
-    return (tostring(value or ""):gsub("^%s+", ""):gsub("%s+$", ""))
-end
-
 local function is_web_url(value)
     return type(value) == "string" and value:match("^https?://%S+$") ~= nil
 end
@@ -92,18 +88,15 @@ local function get_button_dialog()
 end
 
 function Mac1984:init()
-    local ok_meta, meta = pcall(dofile, self.path .. "/_meta.lua")
-    if ok_meta and type(meta) == "table" then
-        self.version = meta.version or self.version
-        self.github = meta.github or self.github
-        self.sponsor_url = is_web_url(meta.sponsor_url) and meta.sponsor_url or nil
-        if is_safe_relative_path(meta.sponsor_wechat_qr) then
-            local reward_path = self.path .. "/" .. meta.sponsor_wechat_qr
-            if file_exists(reward_path) then
-                self.wechat_reward_path = reward_path
-            else
-                logger.warn("Mac1984: could not find WeChat reward image", reward_path)
-            end
+    -- PluginLoader already merged _meta.lua into this module. Only validate
+    -- the sponsor fields and resolve the optional reward image here.
+    self.sponsor_url = is_web_url(self.sponsor_url) and self.sponsor_url or nil
+    if is_safe_relative_path(self.sponsor_wechat_qr) then
+        local reward_path = self.path .. "/" .. self.sponsor_wechat_qr
+        if file_exists(reward_path) then
+            self.wechat_reward_path = reward_path
+        else
+            logger.warn("Mac1984: could not find WeChat reward image", reward_path)
         end
     end
 
@@ -169,7 +162,14 @@ function Mac1984:initializeTheme()
         end
     end
     if not report then
-        report, deploy_error = self.deploy.deploy(self.path, self.version)
+        local ok_deploy, deploy_result, deploy_failure = pcall(function()
+            return self.deploy.deploy(self.path, self.version)
+        end)
+        if ok_deploy then
+            report, deploy_error = deploy_result, deploy_failure
+        else
+            deploy_error = deploy_result
+        end
     end
     if not report then
         logger.warn("Mac1984: deployment failed:", deploy_error)
@@ -299,9 +299,25 @@ end
 
 function Mac1984:reinstallTheme()
     if not self.deploy then return end
+    if not self.version then
+        logger.warn("Mac1984: plugin version is missing; cannot reinstall")
+        UIManager:show(InfoMessage:new{
+            text = _(
+                "Macintosh 1984 could not reinstall its theme files because the "
+                .. "plugin version is missing."
+            ),
+            timeout = 6,
+        })
+        return
+    end
     self.state:saveSetting("disabled", false)
     self.state:flush()
-    local report, deploy_error = self.deploy.deploy(self.path, self.version)
+    local ok, report, deploy_error = pcall(function()
+        return self.deploy.deploy(self.path, self.version)
+    end)
+    if not ok then
+        report, deploy_error = nil, report
+    end
     if not report then
         UIManager:show(InfoMessage:new{
             text = T(_("Could not reinstall the theme files.\n\n%1"), tostring(deploy_error)),
@@ -319,11 +335,21 @@ end
 
 function Mac1984:restoreOriginalTheme()
     if not self.deploy then return end
+    local ok, restore_error = pcall(function()
+        return self.deploy.uninstall()
+    end)
+    if not ok then
+        logger.warn("Mac1984: could not restore the original files:", restore_error)
+        UIManager:show(InfoMessage:new{
+            text = T(_("Could not restore the original files.\n\n%1"), tostring(restore_error)),
+            timeout = 8,
+        })
+        return
+    end
     self.state:saveSetting("disabled", true)
     self.state:flush()
     G_reader_settings:saveSetting("mac1984_enabled", false)
     G_reader_settings:flush()
-    self.deploy.uninstall()
     UIManager:askForRestart(_(
         "Macintosh 1984 was disabled and its original files were restored.\n\n"
         .. "The plugin remains installed, so you can enable the theme again from "
@@ -346,9 +372,8 @@ end
 
 function Mac1984:getThemeDiagnostics()
     local patch_path = "unknown"
-    local ok_storage, DataStorageModule = pcall(require, "datastorage")
-    if ok_storage and type(DataStorageModule.getPatchesDir) == "function" then
-        local ok_dir, directory = pcall(DataStorageModule.getPatchesDir, DataStorageModule)
+    if type(DataStorage.getPatchesDir) == "function" then
+        local ok_dir, directory = pcall(DataStorage.getPatchesDir, DataStorage)
         if ok_dir and directory then
             patch_path = directory .. "/2-mac1984.lua"
         end
@@ -617,7 +642,12 @@ function Mac1984:checkForUpdate()
     NetworkMgr:runWhenConnected(function()
         UIManager:show(InfoMessage:new{ text = _("Checking for Macintosh 1984 updates..."), timeout = 1 })
         UIManager:scheduleIn(0.1, function()
-            local release, fetch_error = self.ota.fetch_latest(self.github)
+            local ok_fetch, release, fetch_error = pcall(function()
+                return self.ota.fetch_latest(self.github)
+            end)
+            if not ok_fetch then
+                release, fetch_error = nil, release
+            end
             if not release then
                 UIManager:show(InfoMessage:new{
                     text = T(_("Could not check for updates.\n\n%1"), tostring(fetch_error)),
@@ -641,9 +671,14 @@ function Mac1984:checkForUpdate()
                 ok_callback = function()
                     UIManager:show(InfoMessage:new{ text = _("Downloading update..."), timeout = 1 })
                     UIManager:scheduleIn(0.1, function()
-                        local installed, install_error = self.ota.install(
-                            self.path, release.url, release.version
-                        )
+                        local ok_install, installed, install_error = pcall(function()
+                            return self.ota.install(
+                                self.path, release.url, release.version
+                            )
+                        end)
+                        if not ok_install then
+                            installed, install_error = nil, installed
+                        end
                         if not installed then
                             UIManager:show(InfoMessage:new{
                                 text = T(_("Update failed.\n\n%1"), tostring(install_error)),

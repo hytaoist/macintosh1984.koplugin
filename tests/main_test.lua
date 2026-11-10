@@ -332,6 +332,23 @@ disabled_plugin:initializeTheme()
 assert(_G._mac1984_fallback_test_loaded == nil,
     "disabled theme unexpectedly loaded its runtime")
 
+-- A missing plugin version must not call deploy with a nil version.
+local no_version_state = new_state()
+local no_version_plugin = Mac1984:extend{
+    path = "tests/fixtures/fallback-plugin",
+    version = nil,
+    state = no_version_state,
+    deploy = {
+        deployed_version = function() return nil end,
+        deploy = function()
+            error("deploy must not run without a plugin version")
+        end,
+    },
+}
+no_version_plugin:reinstallTheme()
+assert(shown_widget and shown_widget.is_info_message,
+    "missing plugin version did not show an error message")
+
 -- Runtime failures should be stored and visible in diagnostics.
 _G._mac1984_theme_loaded = nil
 _G._mac1984_theme_error = nil

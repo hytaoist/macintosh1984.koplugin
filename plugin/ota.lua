@@ -147,7 +147,12 @@ function M.fetch_latest(repo)
     if file then file:close() end
     remove_file(response_path)
 
-    local ok_json, release = pcall(require("json").decode, raw or "")
+    local ok_json, json_module = pcall(require, "json")
+    local release
+    if ok_json and type(json_module) == "table"
+        and type(json_module.decode) == "function" then
+        ok_json, release = pcall(json_module.decode, raw or "")
+    end
     if not ok_json or type(release) ~= "table" or type(release.tag_name) ~= "string" then
         return nil, "GitHub returned an invalid release"
     end
