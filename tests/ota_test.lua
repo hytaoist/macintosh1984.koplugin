@@ -3,6 +3,13 @@
 local source_path = assert(arg[1], "OTA module path")
 local available = {}
 
+package.preload["logger"] = function()
+    return {
+        info = function() end,
+        warn = function() end,
+    }
+end
+
 package.preload["socket.http"] = function()
     return {
         request = function(request)
@@ -73,10 +80,29 @@ package.preload["json"] = function()
                             browser_download_url = "https://example.test/plugin.zip",
                             size = 1234,
                         },
+                        {
+                            name = "SHA256SUMS",
+                            browser_download_url = "https://example.test/SHA256SUMS",
+                        },
                     },
                 }
             end
             return { ok = true }
+        end,
+    }
+end
+
+local SHA256_DIGEST =
+    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+
+package.preload["ffi/sha2"] = function()
+    return {
+        sha256 = function()
+            local update = function(chunk)
+                if chunk then return update end
+                return SHA256_DIGEST
+            end
+            return update
         end,
     }
 end
@@ -94,7 +120,11 @@ os.remove(destination)
 
 OTA.download = function(_, path)
     local file = assert(io.open(path, "wb"))
-    file:write('{"tag_name":"v1.2.2"}')
+    if path:find("sha256sums", 1, true) then
+        file:write(SHA256_DIGEST .. "  macintosh1984-v1.2.2.koplugin.zip\n")
+    else
+        file:write('{"tag_name":"v1.2.2"}')
+    end
     file:close()
     return true
 end
@@ -103,7 +133,31 @@ assert(release.version == "1.2.2", "release version parsing failed")
 assert(release.asset_name == "macintosh1984-v1.2.2.koplugin.zip",
     "Storefront asset selection failed")
 assert(release.url == "https://example.test/plugin.zip", "release URL selection failed")
+assert(release.checksum == SHA256_DIGEST, "release checksum was not picked up")
 assert(OTA.is_newer("1.2.2", "1.2.1"), "version comparison failed")
 assert(not OTA.is_newer("v1.2.1", "1.2.1"), "equal versions should not be newer")
+
+-- A download is only installed when it matches the published digest.
+local package_path = available.settings_dir .. "/mac1984-ota-test.zip"
+local package_file = assert(io.open(package_path, "wb"))
+package_file:write("PK\003\004fake archive")
+package_file:close()
+assert(OTA.verify_checksum(package_path, SHA256_DIGEST),
+    "a matching checksum was rejected")
+assert(OTA.verify_checksum(package_path, nil),
+    "a release without a checksum should still be installable")
+local ok_verify, verify_error = OTA.verify_checksum(package_path, string.rep("f", 64))
+assert(not ok_verify, "a mismatched checksum was accepted")
+assert(type(verify_error) == "string", "a checksum mismatch has no error message")
+
+-- A build without hashing support must not block the update.
+local saved_preload = package.preload["ffi/sha2"]
+package.preload["ffi/sha2"] = nil
+package.loaded["ffi/sha2"] = nil
+assert(OTA.verify_checksum(package_path, SHA256_DIGEST),
+    "an unverifiable update was blocked")
+package.preload["ffi/sha2"] = saved_preload
+package.loaded["ffi/sha2"] = nil
+os.remove(package_path)
 
 print("OTA test OK")

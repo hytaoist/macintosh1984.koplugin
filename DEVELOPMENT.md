@@ -74,6 +74,7 @@ lua tests/main_test.lua plugin/main.lua
 lua tests/ota_test.lua plugin/ota.lua
 ./tests/run_compat_test.sh
 ./tests/run_loader_test.sh
+./tests/run_recovery_test.sh
 ./tests/run_deploy_test.sh
 ./tests/run_installer_test.sh
 ./tests/run_build_repro_test.sh
@@ -82,8 +83,8 @@ python3 tools/check_icons.py
 
 测试覆盖插件 UI、OTA、首次部署、重复安装、旧版备份迁移、新旧插件目录共存与清理、
 SimpleUI 设置恢复、卸载、AppleDouble 元数据清理、Storefront ZIP 结构、启动快路径、
-安全模式、禁用 UI 字体和构建可重复性。`check_icons.py` 会校验 KOReader 图标清单和
-SimpleUI 图标引用。
+安全模式、禁用 UI 字体、更新包校验和、OTA 中断恢复和构建可重复性。
+`check_icons.py` 会校验 KOReader 图标清单和 SimpleUI 图标引用。
 CI 会同时使用 Lua 5.4 和 LuaJIT 运行测试。
 
 ## 发布

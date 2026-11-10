@@ -7,6 +7,18 @@ local M = {}
 
 local USER_AGENT = "KOReader-Mac1984"
 
+local logger = require("logger")
+
+-- Returns the SHA-256 factory of KOReader's hashing library, or nil when this
+-- build cannot hash a download.
+local function sha256_hasher()
+    local ok_sha, sha2 = pcall(require, "ffi/sha2")
+    if not ok_sha or type(sha2) ~= "table" or type(sha2.sha256) ~= "function" then
+        return nil
+    end
+    return sha2.sha256
+end
+
 local function lfs_module()
     local ok, module = pcall(require, "libs/libkoreader-lfs")
     if ok and module then return module end
@@ -129,6 +141,72 @@ function M.download(url, destination)
     return status == 0 or status == true
 end
 
+-- Returns the lowercase hex SHA-256 digest of a file, or nil plus an error.
+function M.sha256_file(path)
+    local sha256 = sha256_hasher()
+    if not sha256 then return nil, "SHA-256 support is unavailable" end
+
+    local file = io.open(path, "rb")
+    if not file then return nil, "Could not read the downloaded update" end
+
+    local ok, digest = pcall(function()
+        local update = sha256()
+        while true do
+            local chunk = file:read(65536)
+            if not chunk then break end
+            update(chunk)
+        end
+        return update()
+    end)
+    file:close()
+    if not ok then return nil, tostring(digest) end
+    if type(digest) ~= "string" then return nil, "SHA-256 returned an unexpected result" end
+    return digest:lower()
+end
+
+-- Verifies a downloaded file against an expected digest. A missing checksum
+-- means the release did not publish one, so the download is accepted.
+function M.verify_checksum(path, checksum)
+    if not checksum or checksum == "" then return true end
+    if not sha256_hasher() then
+        -- This KOReader build cannot hash the download. Do not block the
+        -- update, but make the missing verification visible in the log.
+        logger.warn("Mac1984 OTA: SHA-256 is unavailable; the update is not verified")
+        return true
+    end
+    local digest, hash_error = M.sha256_file(path)
+    if not digest then return false, hash_error end
+    if digest ~= tostring(checksum):lower() then
+        return false, "The downloaded update does not match its SHA-256 checksum"
+    end
+    return true
+end
+
+-- Reads a SHA256SUMS file and returns the digest listed for one asset.
+function M.fetch_checksum(url, asset_name)
+    if not url or not asset_name then return nil end
+    local settings_dir = require("datastorage"):getSettingsDir()
+    local sums_path = path_join(settings_dir, "mac1984-sha256sums.txt")
+    if not M.download(url, sums_path) then
+        remove_file(sums_path)
+        return nil
+    end
+
+    local file = io.open(sums_path, "rb")
+    local text = file and file:read("*a")
+    if file then file:close() end
+    remove_file(sums_path)
+    if not text then return nil end
+
+    for line in text:gmatch("[^\r\n]+") do
+        local digest, name = line:match("^([0-9a-fA-F]+)%s+%*?(.+)$")
+        if digest and name and name == asset_name then
+            return digest:lower()
+        end
+    end
+    return nil
+end
+
 function M.fetch_latest(repo)
     if not repo or repo == "" then return nil, "GitHub repository is not configured" end
     local settings_dir = require("datastorage"):getSettingsDir()
@@ -180,12 +258,25 @@ function M.fetch_latest(repo)
     end
     if not selected then return nil, "Release has no .koplugin.zip asset" end
 
+    -- The release publishes SHA256SUMS next to the packages. Use it to
+    -- verify the download before anything is installed.
+    local checksum
+    for _index, asset in ipairs(release.assets or {}) do
+        if type(asset.name) == "string"
+            and asset.name:lower() == "sha256sums"
+            and type(asset.browser_download_url) == "string" then
+            checksum = M.fetch_checksum(asset.browser_download_url, selected.name)
+            break
+        end
+    end
+
     return {
         version = version,
         tag = release.tag_name,
         url = selected.browser_download_url,
         asset_name = selected.name,
         size = selected.size,
+        checksum = checksum,
     }
 end
 
@@ -255,7 +346,7 @@ function M.extract_plugin(zip_path, destination)
     return true
 end
 
-function M.install(plugin_path, url, version)
+function M.install(plugin_path, url, version, checksum)
     local zip_path = plugin_path .. ".update.zip"
     local new_path = plugin_path .. ".new"
     local old_path = plugin_path .. ".old"
@@ -266,6 +357,12 @@ function M.install(plugin_path, url, version)
     if not M.download(url, zip_path) then
         remove_file(zip_path)
         return false, "Download failed"
+    end
+
+    local ok_verify, verify_error = M.verify_checksum(zip_path, checksum)
+    if not ok_verify then
+        remove_file(zip_path)
+        return false, verify_error
     end
 
     local ok_extract, extract_error = M.extract_plugin(zip_path, new_path)

@@ -418,6 +418,41 @@ function M.installed_count(options)
     return #records
 end
 
+-- Groups the manifest records by their parent directory so the startup check
+-- needs one directory listing per folder instead of one stat per file.
+local function group_by_directory(records, all_roots)
+    local groups = {}
+    for _index, record in ipairs(records) do
+        local root = all_roots[record.tag]
+        if not root then return nil end
+        local path = path_join(root, record.rel)
+        local dir = parent_dir(path)
+        local base = path:match("[^/]+$")
+        local group = groups[dir]
+        if not group then
+            group = { expected = {}, count = 0 }
+            groups[dir] = group
+        end
+        group.expected[base] = true
+        group.count = group.count + 1
+    end
+    return groups
+end
+
+local function directory_has_all_files(dir, group)
+    local lfs = lfs_module()
+    local ok, iterator = pcall(lfs.dir, dir)
+    if not ok or type(iterator) ~= "function" then return false end
+    local found = 0
+    for name in iterator do
+        if name ~= "." and name ~= ".." and group.expected[name] then
+            group.expected[name] = nil
+            found = found + 1
+        end
+    end
+    return found == group.count
+end
+
 function M.is_current(version, options)
     options = options or {}
     if not M.is_deployed(version, options) then return false end
@@ -426,12 +461,14 @@ function M.is_current(version, options)
     local records = read_manifest(path_join(all_roots.D, MANIFEST_FILE))
     if #records == 0 then return false end
 
+    local groups = group_by_directory(records, all_roots)
+    if not groups then return false end
+    for _dir, group in pairs(groups) do
+        if not directory_has_all_files(_dir, group) then return false end
+    end
+
     local has_simpleui_settings = false
     for _index, record in ipairs(records) do
-        local root = all_roots[record.tag]
-        if not root or not file_exists(path_join(root, record.rel)) then
-            return false
-        end
         if record.tag == "S" and record.rel == SIMPLEUI_SETTINGS_REL then
             has_simpleui_settings = true
         end

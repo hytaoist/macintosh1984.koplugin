@@ -632,6 +632,13 @@ function Mac1984:checkForUpdate()
         UIManager:show(InfoMessage:new{ text = _("The OTA module is unavailable.") })
         return
     end
+    if self.update_in_progress then
+        UIManager:show(InfoMessage:new{
+            text = _("An update check is already running."),
+            timeout = 3,
+        })
+        return
+    end
 
     local ok_network, NetworkMgr = pcall(require, "ui/network/manager")
     if not ok_network or not NetworkMgr then
@@ -639,6 +646,7 @@ function Mac1984:checkForUpdate()
         return
     end
 
+    self.update_in_progress = true
     NetworkMgr:runWhenConnected(function()
         UIManager:show(InfoMessage:new{ text = _("Checking for Macintosh 1984 updates..."), timeout = 1 })
         UIManager:scheduleIn(0.1, function()
@@ -648,6 +656,7 @@ function Mac1984:checkForUpdate()
             if not ok_fetch then
                 release, fetch_error = nil, release
             end
+            self.update_in_progress = false
             if not release then
                 UIManager:show(InfoMessage:new{
                     text = T(_("Could not check for updates.\n\n%1"), tostring(fetch_error)),
@@ -669,13 +678,15 @@ function Mac1984:checkForUpdate()
                 ok_text = _("Update"),
                 cancel_text = _("Later"),
                 ok_callback = function()
+                    self.update_in_progress = true
                     UIManager:show(InfoMessage:new{ text = _("Downloading update..."), timeout = 1 })
                     UIManager:scheduleIn(0.1, function()
                         local ok_install, installed, install_error = pcall(function()
                             return self.ota.install(
-                                self.path, release.url, release.version
+                                self.path, release.url, release.version, release.checksum
                             )
                         end)
+                        self.update_in_progress = false
                         if not ok_install then
                             installed, install_error = nil, installed
                         end

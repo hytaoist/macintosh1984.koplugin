@@ -30,6 +30,7 @@ jobs:
           lua tests/ota_test.lua plugin/ota.lua
           ./tests/run_compat_test.sh
           ./tests/run_loader_test.sh
+          ./tests/run_recovery_test.sh
           ./tests/run_deploy_test.sh
           ./tests/run_installer_test.sh
           ./tests/run_build_repro_test.sh

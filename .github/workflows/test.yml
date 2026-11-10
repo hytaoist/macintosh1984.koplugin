@@ -30,7 +30,8 @@ jobs:
           bash -n build.sh install.sh uninstall.sh publish.sh \
             tests/run_build_repro_test.sh tests/run_deploy_test.sh \
             tests/run_installer_test.sh tests/run_loader_test.sh \
-            tests/run_apply_options_test.sh tests/run_compat_test.sh
+            tests/run_apply_options_test.sh tests/run_compat_test.sh \
+            tests/run_recovery_test.sh
           for file in plugin/_meta.lua plugin/deploy.lua plugin/ota.lua plugin/main.lua \
             plugin/compat.lua plugin/theme/apply.lua patches/2-mac1984.lua \
             assets/simpleui-icons/pack.lua \
@@ -48,6 +49,7 @@ jobs:
           lua tests/ota_test.lua plugin/ota.lua
           ./tests/run_compat_test.sh
           ./tests/run_loader_test.sh
+          ./tests/run_recovery_test.sh
           ./tests/run_deploy_test.sh
           ./tests/run_installer_test.sh
       - name: Build deterministic release artifacts

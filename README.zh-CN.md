@@ -81,6 +81,9 @@ koreader/plugins/macintosh1984.koplugin/
 - Storefront 用户：**Storefront → Update All**
 - 手动安装用户：**工具 → Macintosh 1984 → Check for updates**
 
+手动更新会先用 Release 附带的 SHA-256 校验和验证下载包；如果更新被意外中断，
+下次启动会自动恢复旧版插件目录。
+
 更新后按提示重启 KOReader。
 
 ## 插件菜单
